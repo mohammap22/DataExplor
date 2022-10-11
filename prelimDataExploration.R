@@ -7,15 +7,13 @@ library(leaflet)
 library(WDI)
 library(drc)
 
+install.packages("corrplot")
+library(corrplot)
 
-#C02 <- ('EN.ATM.CO2E.KD.GD', 'EN.ATM.CO2E.PP.GD.KD', 'EN.ATM.CO2E.PP.GD', 'EN.ATM.CO2E.KT', 'EN.ATM.CO2E.PC', 
- #       'EN.CO2.ETOT.ZS', 'EN.ATM.CO2E.GF.ZS', 'EN.ATM.CO2E.GF.KT', 'EN.ATM.CO2E.LF.ZS', 'EN.ATM.CO2E.LF.KT', 
-  #      'EN.CO2.MANF.ZS', 'EN.CO2.OTHX.ZS', 'EN.CO2.BLDG.ZS', 'EN.ATM.CO2E.SF.ZS', 'EN.ATM.CO2E.SF.KT', 
-   #     'EN.CO2.TRAN.ZS', 'EN.ATM.CO2E.EG.ZS')
+countries <- read.csv("c1329fad-744d-4da3-80ff-b321ebe3aa35_Data.csv")
+regions <- read.csv("15961dc9-2878-4637-837a-a6f27d6463e2_Data.csv")
 
-#look at air pollution too 
 
-test <- WDI(country = "all", indicator = 'NY.GDP.PCAP.KD', start = 2015, end = 2015)
 clearWDI <- WDI(country = c("AFE","AFW","CEB",
                             "EAS","ECS", "LCN","MEA", "NAC","PSS","SAS","SSF"), indicator = c("NY.GDP.PCAP.KD",'NY.GDP.MKTP.PP.CD',
                                                "SE.PRM.TENR","SL.TLF.0714.SW.TM","SI.POV.DDAY"),start = 2014, end = 2014)
@@ -23,38 +21,77 @@ clearWDI <- WDI(country = c("AFE","AFW","CEB",
 
 largeclearWDI <- WDI(country = c("AFE","AFW","CEB",
                             "EAS","ECS", "LCN","MEA", "NAC","PSS","SAS","SSF"), indicator = c("NY.GDP.PCAP.KD",'NY.GDP.MKTP.PP.CD',
-                                                                                              "SE.PRM.TENR","SL.TLF.0714.SW.TM","SI.POV.DDAY"),start = 2000, end = 2020)
+                                                                                              "SE.PRM.TENR","SL.TLF.0714.SW.TM","SI.POV.DDAY",
+                                                                                              "EN.POP.SLUM.UR.ZS",
+                                                                                              "SI.POV.NAHC"),start = 2000, end = 2020)
 
 
-FullclearWDI <- clearWDI[! is.na(clearWDI$SE.PRM.TENR),]
+
+convertAvg <- function(country, vals, dataset){
+  data <- data.frame(Region = country)
+  for (i in vals){
+    new <- rep(i, nrow(data))
+    data[, ncol(data)+1] = mean(dataset[dataset$country == country,i], na.rm = TRUE)
+    colnames(data)[ncol(data)] <- paste0("Average",i)
+  }
+  return(data)
+}
+
+makeAvgDF <- function(regions, indicators, dataset){
+  ret <- data.frame()
+  for(i in regions){
+    ret = rbind(ret,convertAvg(i, indicators, dataset))
+  }
+  return(ret)
+}
+myp <- makeAvgDF(c("North America", "Pacific island small states","South Asia","Sub-Saharan Africa","Central Europe and the Baltics",
+                   "East Asia & Pacific","Europe & Central Asia","Latin America & Caribbean", 
+                   "Middle East & North Africa"), c("NY.GDP.PCAP.KD","NY.GDP.MKTP.PP.CD","SE.PRM.TENR","SL.TLF.0714.SW.TM","SI.POV.DDAY",
+                                                    "EN.POP.SLUM.UR.ZS","SI.POV.NAHC"),
+                 largeclearWDI)
 
 
-rowMeans(largeclearWDI[largeclearWDI$country =="North America",], na.rm=T)
 
-
-largeclearWDI[largeclearWDI$country =="North America",]
-
-
-model <- drm(Y ~ X, fct = DRC.asymReg())
-ggplot(data = FullclearWDI, aes(x = NY.GDP.MKTP.PP.CD, y = SE.PRM.TENR, color = as.factor(country)))+
+ggplot(data = myp, aes(x = AverageNY.GDP.MKTP.PP.CD, y = AverageSE.PRM.TENR, color = Region,
+                       size = AverageSI.POV.NAHC))+
   geom_point()+xlab("Regions Average GDP") + ylab("Percent of Children Enrolled in School")
+
+
+
+
+ugeMan <- WDI(country = "all",indicator = c("NY.GDP.PCAP.KD","NY.GDP.MKTP.PP.CD","SE.PRM.TENR","SL.TLF.0714.SW.TM","SI.POV.DDAY",
+                                            "EN.POP.SLUM.UR.ZS","SI.POV.NAHC"), 
+              start = 2010, end = 2020)
+
+ugeCopy <- ugeMan
+sum(is.na(ugeCopy$NY.GDP.MKTP.PP.CD))
+
+P <- subset(ugeCopy, select = -SL.TLF.0714.SW.TM)
+ugeCopy <- subset(ugeCopy, select = -SL.TLF.0714.SW.TM)[complete.cases(P), ]
+
+ugeCopy <- unique(ugeCopy)
+
+
+bigboy <- makeAvgDF(countries$Country.Name, c("NY.GDP.PCAP.KD","NY.GDP.MKTP.PP.CD","SE.PRM.TENR","SL.TLF.0714.SW.TM","SI.POV.DDAY",
+                                      "EN.POP.SLUM.UR.ZS","SI.POV.NAHC"),ugeMan)
+
+
+regionBig <- makeAvgDF(c("North America", "Pacific island small states","South Asia","Sub-Saharan Africa","Central Europe and the Baltics",
+                       "East Asia & Pacific","Europe & Central Asia","Latin America & Caribbean", 
+                       "Middle East & North Africa"), c("NY.GDP.PCAP.KD","NY.GDP.MKTP.PP.CD","SE.PRM.TENR","SL.TLF.0714.SW.TM","SI.POV.DDAY",
+                                              "EN.POP.SLUM.UR.ZS","SI.POV.NAHC"),ugeMan)
+
+bigboy <- unique(bigboy)
+regionBig <- unique(regionBig)
+
+cor(bigboy$AverageNY.GDP.PCAP.KD, bigboy$AverageSL.TLF.0714.SW.TM, use = "complete.obs")
+
+ggplot(data = (bigboy), aes(x = AverageNY.GDP.PCAP.KD, y = AverageEN.POP.SLUM.UR.ZS, color = Region))+
+  geom_point()+xlab("Net Enrollment %") + ylab("GDP") +
+  theme(legend.position = 'none')
   
-SI.POV.DDAY
-
-USA <- WDIData[WDIData$Country.Code == "USA",]
-plot(as.numeric(as.list(USA[USA$Indicator.Code == 'EN.ATM.CO2E.KD.GD',])))
-
-
-topoData <- geoJ (countries.geojson) %>% paste(collapse = "\n") 
-
-leaflet() %>% setView(lng = -98.583, lat = 39.833, zoom = 3) %>%
-  addTiles() %>%
-  addTopoJSON(topoData, weight = 1, color = "#444444", fill = FALSE)
-
-
-
-
-
+AverageNY.GDP.PCAP.KD
+AverageSI.POV.NAHC
 
 prob5 <- function(n){
   range = pbinom(1:n,n,.5) - pbinom(n-(1:n)-1,n,.5)
@@ -63,6 +100,24 @@ prob5 <- function(n){
 prob5(10)
 
 
+recent <- ugeMan[ugeMan$year == 2019,]
 
+recentRegions <- makeAvgDF(c("North America", "Pacific island small states","South Asia","Sub-Saharan Africa","Central Europe and the Baltics",
+                         "East Asia & Pacific","Europe & Central Asia","Latin America & Caribbean", 
+                         "Middle East & North Africa"), c("NY.GDP.PCAP.KD","NY.GDP.MKTP.PP.CD","SE.PRM.TENR","SL.TLF.0714.SW.TM","SI.POV.DDAY",
+                                                          "EN.POP.SLUM.UR.ZS","SI.POV.NAHC"),recent)
+
+corData <- cor(ugeCopy[,-c(1:4)], use = 'complete.obs')
+
+corrplot(corData)
+
+ggplot(data = (ugeCopy), aes(x = SE.PRM.TENR, y = EN.POP.SLUM.UR.ZS, color = country, size = SI.POV.DDAY))+
+  geom_point()+xlab("Net School Enrollment %") + ylab("% of Pop Living in the Slums") +
+  theme(legend.position = 'none')
+
+
+ggplot(data = (ugeCopy), aes(x = SE.PRM.TENR, y = EN.POP.SLUM.UR.ZS))+
+  geom_point()+xlab("Net School Enrollment %") + ylab("% of Pop Living in the Slums") +
+  theme(legend.position = 'none')+ geom_smooth(method=lm, se=FALSE)
 
 
